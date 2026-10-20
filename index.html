@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Patchwork</title>
+<meta name="description" content="A web-based modular rack. Each instrument is a module; patch them together with clocks, triggers, notes and control.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Atkinson+Hyperlegible:wght@400;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="host/style.css">
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="brand"><b>Patchwork</b><small>modular rack</small></div>
+    <nav class="tabs" id="tabs" aria-label="Modules"></nav>
+    <button class="btn primary start" id="startBtn">Start sound</button>
+  </header>
+
+  <main id="views">
+    <p class="loading" id="loading">Loading modules…</p>
+  </main>
+
+  <footer class="patchbar">
+    <button class="btn" data-act="open-patch" id="patchBtn">Patch</button>
+    <div class="leds" id="leds" aria-label="Module activity"></div>
+    <label class="master">Master <input type="range" id="masterVol" min="0" max="1" step="0.01"></label>
+  </footer>
+</div>
+
+<div class="sheet" id="sheet" hidden>
+  <button class="sheet-back" data-act="close-patch" aria-label="Close patch"></button>
+  <div class="sheet-card" role="dialog" aria-label="Patch">
+    <header><h2>Patch</h2><button class="btn ghost" data-act="close-patch">Close</button></header>
+
+    <section>
+      <h3>New cable</h3>
+      <div class="newcable">
+        <label>From <select id="p-from"></select></label>
+        <label>To <select id="p-to"></select></label>
+        <button class="btn primary" id="p-connect">Connect</button>
+      </div>
+    </section>
+
+    <section><h3>Cables</h3><ul class="cables" id="p-list"></ul></section>
+
+    <section><h3>Mix</h3><div class="mix" id="p-mix"></div></section>
+
+    <section>
+      <h3>Saved patches</h3>
+      <div class="row">
+        <input type="text" id="patchName" placeholder="Name this patch" maxlength="40">
+        <button class="btn" id="patchSave">Save</button>
+      </div>
+      <ul class="plist" id="patchList"></ul>
+      <div class="row">
+        <button class="btn ghost" id="patchExport">Export as file</button>
+        <label class="btn ghost filebtn">Import file<input type="file" id="patchImport" accept=".json,application/json"></label>
+      </div>
+    </section>
+
+    <section>
+      <h3>Modules</h3>
+      <ul class="plist" id="modList"></ul>
+      <label class="btn ghost filebtn">Try a module file<input type="file" id="modFile" accept=".js,.mjs,text/javascript"></label>
+      <p class="note">A module added here lives only in this browser. To keep it, put the file in the repo's <code>modules</code> folder and add its name to <code>modules/index.json</code>.</p>
+    </section>
+
+    <section>
+      <h3>Signal types</h3>
+      <div class="legend">
+        <span class="pt t-trigger">trigger</span><span class="pt t-clock">clock</span><span class="pt t-note">note</span><span class="pt t-control">control</span>
+      </div>
+      <p class="note">Triggers, clocks and notes are all events, so any of them can fire a trigger or clock input. Notes only go to note inputs, and control only to control inputs. Audio moves by sampling.</p>
+    </section>
+
+    <button class="btn ghost" id="p-reset" data-confirm="Tap again to reset everything">Reset to the example patch</button>
+  </div>
+</div>
+
+<script type="module" src="host/host.js"></script>
+</body>
+</html>

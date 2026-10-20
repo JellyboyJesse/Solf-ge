@@ -1,0 +1,9 @@
+{
+  "patchwork": 1,
+  "cables": [
+    { "from": "bell-towers.t1.strike", "to": "line-score.pink.start" },
+    { "from": "line-score.pink.note", "to": "solfege-pulses.sing" },
+    { "from": "line-score.blue.mod", "to": "bell-towers.t2.size" },
+    { "from": "line-score.yellow.cross", "to": "bell-towers.t3.ring" }
+  ]
+}
