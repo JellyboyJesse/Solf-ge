@@ -13,6 +13,8 @@ export default {
   name: 'Bell Towers',
   short: 'Bells',
   version: 1,
+  kind: 'instrument',
+  description: 'Bells swinging at speeds set by their size. Every strike and swing can drive other modules.',
 
   defaults() {
     return {

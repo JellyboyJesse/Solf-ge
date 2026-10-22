@@ -1,5 +1,5 @@
-// Clock — a steady master clock with two dividers and a chance gate.
-// It is also the simplest complete module, so copy this file when starting a new one.
+// Clock — a steady beat with two dividers and a chance gate.
+// It is also the simplest complete utility, so copy this file when starting a new one.
 // See MODULES.md for the full contract.
 
 export default {
@@ -8,19 +8,22 @@ export default {
   name: 'Clock',
   short: 'Clock',
   version: 1,
+  kind: 'utility',          // lives on the Utilities page as a strip
+  multiple: true,           // the rack can hold several clocks: clock, clock-2, …
+  description: 'A steady beat with two dividers and a chance gate, for modules that follow a clock.',
 
-  // Saved settings for a fresh rack. Plain JSON only: no functions, no audio nodes.
+  // Saved settings for a new instance. Plain JSON only: no functions, no audio nodes.
   defaults() {
     return { bpm: 100, a: 2, b: 3, chance: 0.35, tick: false };
   },
 
-  // create() runs once. Keep runtime things (timers, audio nodes) in local variables here,
-  // and always read settings through host.state, because loading a patch replaces it.
+  // create() runs once per instance. Keep runtime things (timers, audio nodes) in local variables
+  // here, and always read settings through host.state, because loading a patch replaces it.
   create(host) {
     const { clamp } = host.util;
     const st = () => host.state;
     let next = 0, beat = 0, tmod = 1, hist = [];
-    let cv = null, panel = null;
+    let panel = null, ctl = null, lamps = {};
 
     function tickSound(time, accent) {
       if (!st().tick || !host.ctx) return;
@@ -40,29 +43,29 @@ export default {
       tickSound(time, out.a);
     }
 
+    // The panel has a fixed part (lamps) and a part rebuilt by render() (controls and jacks).
     function render() {
-      if (!panel) return;
+      if (!ctl) return;
       const s = st();
-      panel.innerHTML = `<div class="ph"><h2>Clock</h2><p class="lede">A steady beat for modules that follow a clock, with two dividers and a chance gate for looser patterns.</p></div>
-        <fieldset class="group"><legend>Tempo</legend>
-          <label class="field"><span>Tempo <output id="ck-bpmOut">${s.bpm} bpm</output></span><input type="range" id="ck-bpm" min="30" max="240" step="1" value="${s.bpm}"></label>
-          <div class="field"><span>Output A fires every</span><div class="stepper"><button data-act="ck-step" data-k="a" data-d="-1" aria-label="Fewer beats for A">−</button><output>${s.a}</output><button data-act="ck-step" data-k="a" data-d="1" aria-label="More beats for A">+</button><span class="note">beats</span></div></div>
-          <div class="field"><span>Output B fires every</span><div class="stepper"><button data-act="ck-step" data-k="b" data-d="-1" aria-label="Fewer beats for B">−</button><output>${s.b}</output><button data-act="ck-step" data-k="b" data-d="1" aria-label="More beats for B">+</button><span class="note">beats</span></div></div>
-          <label class="field"><span>Chance per beat <output id="ck-chanceOut">${Math.round(s.chance * 100)}%</output></span><input type="range" id="ck-chance" min="0" max="1" step="0.01" value="${s.chance}"></label>
-          <label class="toggle"><input type="checkbox" id="ck-tick" ${s.tick ? 'checked' : ''}>Audible tick</label>
-        </fieldset>${host.portsBox('')}`;
+      ctl.innerHTML = `
+        <label class="field"><span>Tempo <output class="ck-bpmOut">${s.bpm} bpm</output></span><input type="range" class="ck-bpm" min="30" max="240" step="1" value="${s.bpm}" ${host.isPatched('tempo') ? 'disabled' : ''}></label>
+        <div class="field"><span>A every</span><div class="stepper"><button data-ck="a" data-d="-1" aria-label="Fewer beats for A">−</button><output>${s.a}</output><button data-ck="a" data-d="1" aria-label="More beats for A">+</button><span class="note">beats</span></div></div>
+        <div class="field"><span>B every</span><div class="stepper"><button data-ck="b" data-d="-1" aria-label="Fewer beats for B">−</button><output>${s.b}</output><button data-ck="b" data-d="1" aria-label="More beats for B">+</button><span class="note">beats</span></div></div>
+        <label class="field"><span>Chance per beat <output class="ck-chanceOut">${Math.round(s.chance * 100)}%</output></span><input type="range" class="ck-chance" min="0" max="1" step="0.01" value="${s.chance}"></label>
+        <label class="toggle"><input type="checkbox" class="ck-tick" ${s.tick ? 'checked' : ''}>Audible tick</label>
+        ${host.portsBox('')}`;
     }
 
     return {
       // Ports: ids are local to this module. Types: clock, trigger, note, control.
       ports() {
         return [
+          { id: 'tempo', label: 'tempo', dir: 'in', type: 'control' },
+          { id: 'reset', label: 'reset', dir: 'in', type: 'trigger' },
           { id: 'beat', label: 'beat', dir: 'out', type: 'clock' },
           { id: 'a', label: 'A', dir: 'out', type: 'trigger' },
           { id: 'b', label: 'B', dir: 'out', type: 'trigger' },
           { id: 'chance', label: 'chance', dir: 'out', type: 'trigger' },
-          { id: 'tempo', label: 'tempo', dir: 'in', type: 'control' },
-          { id: 'reset', label: 'reset', dir: 'in', type: 'trigger' },
         ];
       },
 
@@ -75,51 +78,43 @@ export default {
 
       // Messages arriving on input ports. msg.time is the audio time the event should happen.
       input(port, msg) {
-        if (port === 'tempo') tmod = 0.5 + clamp(msg.value, 0, 1);
+        if (port === 'tempo') tmod = 0.5 + clamp(msg.value, 0, 1) * 1.5;
         else if (port === 'reset') { beat = 0; next = Math.max(msg.time, host.now()); }
       },
 
-      // Build the page once: the stage (left) and the panel (right).
+      // Build the page once. A utility gets no stage (null), only its strip's body as the panel.
+      // Scope every lookup to the panel: there may be several clocks on the page.
       mount(stage, pnl) {
         panel = pnl;
-        cv = host.makeCanvas(stage);
+        panel.innerHTML = `<div class="lamps">${['beat', 'a', 'b', 'chance'].map(k => `<span class="lamp ${k === 'beat' ? 't-clock' : 't-trigger'}" data-lamp="${k}"><i></i>${k === 'a' ? 'A' : k === 'b' ? 'B' : k}</span>`).join('')}</div><div class="ck-ctl"></div>`;
+        ctl = panel.querySelector('.ck-ctl');
+        panel.querySelectorAll('[data-lamp]').forEach(el => { lamps[el.dataset.lamp] = el; });
         panel.addEventListener('click', e => {
-          const b = e.target.closest('[data-act="ck-step"]'); if (!b) return;
-          st()[b.dataset.k] = clamp(st()[b.dataset.k] + (+b.dataset.d), 1, 16); host.save(); render();
+          const b = e.target.closest('[data-ck]'); if (!b) return;
+          st()[b.dataset.ck] = clamp(st()[b.dataset.ck] + (+b.dataset.d), 1, 16); host.save(); render();
         });
         panel.addEventListener('input', e => {
           const v = parseFloat(e.target.value);
-          if (e.target.id === 'ck-bpm') { st().bpm = v; panel.querySelector('#ck-bpmOut').textContent = v + ' bpm'; }
-          else if (e.target.id === 'ck-chance') { st().chance = v; panel.querySelector('#ck-chanceOut').textContent = Math.round(v * 100) + '%'; }
+          if (e.target.classList.contains('ck-bpm')) { st().bpm = v; panel.querySelector('.ck-bpmOut').textContent = v + ' bpm'; }
+          else if (e.target.classList.contains('ck-chance')) { st().chance = v; panel.querySelector('.ck-chanceOut').textContent = Math.round(v * 100) + '%'; }
           else return;
           host.save();
         });
-        panel.addEventListener('change', e => { if (e.target.id === 'ck-tick') { st().tick = e.target.checked; host.save(); } });
+        panel.addEventListener('change', e => { if (e.target.classList.contains('ck-tick')) { st().tick = e.target.checked; host.save(); } });
         render();
       },
 
-      // Called every animation frame while this page is showing. T is the audio time.
+      // Called every animation frame while this module is on screen. T is the audio time.
       draw(T) {
-        const C = host.colours(), g = cv.getContext('2d'), W = cv.width, H = cv.height; if (!W || !H) return;
-        const dpr = W / (cv.clientWidth || W);
-        g.fillStyle = C.paper; g.fillRect(0, 0, W, H);
         let last = null; for (let k = hist.length - 1; k >= 0; k--) if (hist[k].time <= T) { last = hist[k]; break; }
-        const age = last ? T - last.time : 9, cx = W / 2, cy = H / 2, R = Math.min(W, H) * 0.22;
-        const lamp = (x, y, r, on, col) => { g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); if (on) { g.fillStyle = col; g.fill(); } else { g.strokeStyle = C.rule; g.lineWidth = 2 * dpr; g.stroke(); } };
-        lamp(cx, cy, R * (1 + Math.max(0, 0.15 - age) ), age < 0.12, C.ink);
-        const fresh = last && age < 0.18;
-        lamp(cx - R * 1.9, cy + R * 1.2, R * 0.28, fresh && last.a, C.blue);
-        lamp(cx, cy + R * 1.6, R * 0.28, fresh && last.b, C.teal);
-        lamp(cx + R * 1.9, cy + R * 1.2, R * 0.28, fresh && last.chance, C.orange);
-        g.fillStyle = C.muted; g.font = `500 ${11 * dpr}px "IBM Plex Mono", monospace`; g.textAlign = 'center'; g.textBaseline = 'top';
-        g.fillText('A', cx - R * 1.9, cy + R * 1.55); g.fillText('B', cx, cy + R * 1.95); g.fillText('chance', cx + R * 1.9, cy + R * 1.55);
-        g.textAlign = 'start';
+        const fresh = last && T - last.time < 0.12;
+        for (const k in lamps) lamps[k].classList.toggle('on', !!(fresh && last[k]));
       },
 
-      // Rebuild the panel. The host calls this when cables change.
+      // Rebuild the controls. The host calls this when cables change.
       render,
 
-      // Called after a patch is loaded or the rack is reset.
+      // Called after a patch is loaded.
       reset() { beat = 0; next = 0; hist = []; },
     };
   },

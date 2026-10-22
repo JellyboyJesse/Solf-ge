@@ -1,5 +1,6 @@
 {
   "patchwork": 1,
+  "rack": ["bell-towers", "solfege-pulses", "line-score", "clock"],
   "cables": [
     { "from": "bell-towers.t1.strike", "to": "line-score.pink.start" },
     { "from": "line-score.pink.note", "to": "solfege-pulses.sing" },

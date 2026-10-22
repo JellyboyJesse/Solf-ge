@@ -22,6 +22,8 @@ export default {
   name: 'Line Score',
   short: 'Score',
   version: 1,
+  kind: 'instrument',
+  description: 'Draw ink lines that play as sounds. Crossings bend the sound and send notes; each ink can sample any other module.',
 
   defaults() {
     return {
@@ -226,7 +228,7 @@ export default {
     function render() {
       if (!panel) return;
       const ci = sel(), c = COLOURS[ci], cs = st().colours[ci], n = st().lines.filter(l => l.c === ci).length, trig = trigMode(ci), tk = takes[ci];
-      const srcs = host.audioSources().filter(s => s.id !== 'line-score.' + c.id && s.id !== 'line-score');
+      const srcs = host.audioSources().filter(s => s.id !== host.id + '.' + c.id && s.id !== host.id);
       if (!srcs.some(s => s.id === cs.from) && srcs.length) cs.from = srcs[0].id;
       const groups = []; for (const s of srcs) { let gr = groups.find(x => x.module === s.module); if (!gr) groups.push(gr = { module: s.module, name: s.moduleName || s.module, list: [] }); gr.list.push(s); }
       if (hint) hint.textContent = tool === 'erase' ? 'Tap a line to erase it' : 'Drawing in ' + c.name.toLowerCase() + ' · slow strokes give thicker ink';

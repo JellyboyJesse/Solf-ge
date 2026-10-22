@@ -14,12 +14,40 @@
 <div class="app">
   <header class="top">
     <div class="brand"><b>Patchwork</b><small>modular rack</small></div>
-    <nav class="tabs" id="tabs" aria-label="Modules"></nav>
+    <div class="navrow">
+      <nav class="tabs" id="tabs" aria-label="Modules"></nav>
+      <div class="tabs-fixed" id="tabsFixed"></div>
+    </div>
     <button class="btn primary start" id="startBtn">Start sound</button>
   </header>
 
   <main id="views">
     <p class="loading" id="loading">Loading modules…</p>
+
+    <section class="view-page" id="view-utilities" hidden aria-label="Utilities">
+      <div class="page-head">
+        <h2>Utilities</h2>
+        <p class="lede">Small helpers that shape and route signals between the instruments. Add as many as you like.</p>
+        <button class="btn small" data-act="open-rack">Add a utility</button>
+      </div>
+      <p class="empty" id="utilEmpty">No utilities in the rack yet.</p>
+      <div class="util-grid" id="utilGrid"></div>
+    </section>
+
+    <section class="view-page mx-page" id="view-matrix" hidden aria-label="Matrix">
+      <div class="mx-bar">
+        <div class="mx-title"><h2>Matrix</h2><span class="mono" id="mxCount"></span></div>
+        <div class="segs" id="mxFilters" role="group" aria-label="Show signals">
+          <button class="seg" data-act="mx-filter" data-f="all">All</button>
+          <button class="seg" data-act="mx-filter" data-f="events">Events</button>
+          <button class="seg" data-act="mx-filter" data-f="notes">Notes</button>
+          <button class="seg" data-act="mx-filter" data-f="control">Control</button>
+        </div>
+        <label class="toggle"><input type="checkbox" id="mxPatched">Patched only</label>
+        <p class="mx-read" id="mxRead" aria-live="polite">Rows are outputs, columns are inputs. Tap a hole to put a pin in.</p>
+      </div>
+      <div class="mx-wrap" id="mxWrap"></div>
+    </section>
   </main>
 
   <section class="tray" id="tray" hidden aria-label="Cable in hand">
@@ -39,27 +67,21 @@
 </div>
 
 <div class="sheet" id="sheet" hidden>
-  <button class="sheet-back" data-act="close-patch" aria-label="Close patch"></button>
-  <div class="sheet-card" role="dialog" aria-label="Patch">
+  <button class="sheet-back" data-act="close-patch" aria-label="Close"></button>
+  <div class="sheet-card" role="dialog" aria-label="Patch and rack">
     <header><h2>Patch</h2><button class="btn ghost" data-act="close-patch">Close</button></header>
 
     <div class="segs sheet-tabs" role="tablist">
       <button class="seg on" role="tab" data-act="sheet-tab" data-tab="cables" aria-selected="true">Cables</button>
       <button class="seg" role="tab" data-act="sheet-tab" data-tab="mix" aria-selected="false">Mix</button>
       <button class="seg" role="tab" data-act="sheet-tab" data-tab="patches" aria-selected="false">Saved</button>
-      <button class="seg" role="tab" data-act="sheet-tab" data-tab="modules" aria-selected="false">Modules</button>
+      <button class="seg" role="tab" data-act="sheet-tab" data-tab="rack" aria-selected="false">Rack</button>
     </div>
 
     <div class="tabpane" id="tab-cables">
       <section>
-        <h3 id="cableCount">Cables</h3>
+        <div class="row spread"><h3 id="cableCount">Cables</h3><button class="btn small" data-act="open-matrix">Open the matrix</button></div>
         <div id="p-list"></div>
-      </section>
-      <section>
-        <h3>Every jack</h3>
-        <p class="note">Tap any jack to pick up a cable from it.</p>
-        <div class="chips" id="dirMods"></div>
-        <div class="dir" id="dirJacks"></div>
       </section>
       <section>
         <h3>Signal types</h3>
@@ -77,6 +99,7 @@
     <div class="tabpane" id="tab-patches" hidden>
       <section>
         <h3>Saved patches</h3>
+        <p class="note">A patch keeps the modules in the rack, their settings and the cables.</p>
         <div class="row">
           <input type="text" id="patchName" placeholder="Name this patch" maxlength="40">
           <button class="btn" id="patchSave">Save</button>
@@ -93,15 +116,31 @@
       <button class="btn ghost" id="p-reset" data-confirm="Tap again to reset everything">Reset to the example patch</button>
     </div>
 
-    <div class="tabpane" id="tab-modules" hidden>
+    <div class="tabpane" id="tab-rack" hidden>
       <section>
-        <h3>Installed</h3>
-        <ul class="plist" id="modList"></ul>
+        <h3>Instruments in the rack</h3>
+        <ul class="plist" id="rackInst"></ul>
       </section>
       <section>
-        <h3>Try a new one</h3>
+        <h3>Utilities in the rack</h3>
+        <ul class="plist" id="rackUtil"></ul>
+      </section>
+      <section id="rackMissing" hidden>
+        <h3>Couldn't load</h3>
+        <ul class="plist" id="rackMissingList"></ul>
+      </section>
+      <section>
+        <h3>Add an instrument</h3>
+        <div class="lib" id="libInst"></div>
+      </section>
+      <section>
+        <h3>Add a utility</h3>
+        <div class="lib" id="libUtil"></div>
+      </section>
+      <section>
+        <h3>Try a module file</h3>
         <label class="btn ghost filebtn">Choose a module file<input type="file" id="modFile" accept=".js,.mjs,text/javascript"></label>
-        <p class="note">A module added here lives only in this browser. To keep it, put the file in the repo's <code>modules</code> folder and add its name to <code>modules/index.json</code>.</p>
+        <p class="note">A module added from a file lives only in this browser. To keep it, put the file in the repo's <code>modules</code> folder and add its name to <code>modules/index.json</code>. It then shows up here for everyone, marked new.</p>
       </section>
     </div>
   </div>

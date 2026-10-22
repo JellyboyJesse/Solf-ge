@@ -42,13 +42,15 @@ button,select,input{font:inherit;color:inherit}
 .brand b{font-family:var(--font-display);font-weight:800;font-size:1.4rem;letter-spacing:-.01em;
   text-shadow:2px 1px 0 color-mix(in srgb,var(--pink) 75%,transparent),-1px -1px 0 color-mix(in srgb,var(--blue) 60%,transparent)}
 .brand small{font:12px var(--font-mono);color:var(--muted)}
-.tabs{display:flex;gap:4px;flex:1;min-width:0;overflow-x:auto;scrollbar-width:none}
-.tabs a{padding:7px 12px;border-radius:6px;text-decoration:none;color:var(--muted);font-weight:700;white-space:nowrap}
-.tabs a:hover{color:var(--ink)}
-.tabs a[aria-current="page"]{color:var(--ink);background:var(--panel);box-shadow:inset 0 -3px 0 var(--pink)}
+.navrow{display:flex;align-items:center;gap:4px;flex:1;min-width:0}
+.tabs{display:flex;align-items:center;gap:4px;flex:0 1 auto;min-width:0;overflow-x:auto;scrollbar-width:none;padding:3px 2px}
+.tabs-fixed{display:flex;align-items:center;gap:4px;flex:none;padding-left:4px;border-left:1px solid var(--rule)}
+.navrow a{padding:7px 12px;border-radius:6px;text-decoration:none;color:var(--muted);font-weight:700;white-space:nowrap}
+.navrow a:hover{color:var(--ink)}
+.navrow a[aria-current="page"]{color:var(--ink);background:var(--panel);box-shadow:inset 0 -3px 0 var(--pink)}
 .tabs a.local::after{content:" ·local";font:11px var(--font-mono);color:var(--muted)}
 .start{margin-left:auto}
-@media (max-width:760px){.tabs{order:3;flex-basis:100%}}
+@media (max-width:760px){.navrow{order:3;flex-basis:100%}.navrow a{padding:7px 9px}}
 
 /* views */
 main{flex:1;min-height:0;position:relative}
@@ -201,3 +203,105 @@ code{font:12px var(--font-mono)}
 .toast span{min-width:0;overflow-wrap:anywhere}
 .toast button{flex:none;border:1.5px solid var(--paper);background:transparent;color:var(--paper);border-radius:6px;padding:4px 10px;font-weight:700;cursor:pointer}
 @media (prefers-reduced-motion: reduce){*{transition:none!important}.jack.ok .socket{animation:none;box-shadow:0 0 0 5px color-mix(in srgb,var(--tc) 40%,transparent)}}
+
+/* ---------- rack: + tab, library ---------- */
+.tab-add{flex:none;position:relative;width:34px;height:34px;margin-left:4px;border:1.5px dashed var(--muted);border-radius:8px;background:transparent;color:var(--ink);font:700 1.15rem/1 var(--font-body);cursor:pointer}
+.tab-add:hover{border-style:solid;border-color:var(--ink)}
+.tab-add.has-new::after{content:"";position:absolute;top:-4px;right:-4px;width:10px;height:10px;border-radius:50%;background:var(--pink)}
+.row.spread{justify-content:space-between}
+.plist li .btn{flex:none}
+.lib{display:flex;flex-direction:column;gap:8px}
+.libcard{display:flex;align-items:flex-start;gap:12px;border:1px solid var(--rule);border-radius:8px;padding:10px 12px;background:var(--paper)}
+.libcard .grow{flex:1;min-width:0}
+.libcard p{margin:3px 0 0;font-size:.84rem;color:var(--muted)}
+.libcard small{display:block;margin-top:4px;font:11px var(--font-mono);color:var(--muted)}
+.libbtns{display:flex;flex-direction:column;gap:6px;flex:none}
+.newtag{display:inline-block;margin-left:8px;padding:0 6px;border-radius:9px;background:var(--pink);color:#1d2230;font:500 10px/16px var(--font-mono);vertical-align:2px}
+.newtag.local{background:var(--rule);color:var(--ink)}
+
+/* ---------- full-width pages: utilities, matrix ---------- */
+.view-page{height:100%;overflow:auto;display:flex;flex-direction:column;gap:14px}
+.page-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 14px}
+.page-head h2,.mx-title h2{margin:0;font-family:var(--font-display);font-weight:800;font-size:1.25rem}
+.page-head .lede{margin:0;flex:1;min-width:20ch}
+.page-head .btn{margin-left:auto}
+
+/* utilities: narrow strips, like a row of small modules in a case */
+.util-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(232px,1fr));gap:12px;align-items:start}
+.strip{min-width:0;display:flex;flex-direction:column;background:var(--panel);border:1.5px solid var(--ink);border-radius:10px}
+.strip-h{display:flex;align-items:center;gap:8px;padding:8px 8px 8px 10px;border-bottom:1px solid var(--rule)}
+.strip-h h3{margin:0;flex:1;min-width:0;font-family:var(--font-display);font-weight:800;font-size:1rem}
+.screw{position:relative;flex:none;width:10px;height:10px;border-radius:50%;background:var(--paper);box-shadow:inset 0 0 0 1.5px var(--muted)}
+.screw::after{content:"";position:absolute;left:2px;right:2px;top:4px;height:1.5px;background:var(--muted);transform:rotate(35deg)}
+.strip-x{flex:none;border:0;background:none;color:var(--muted);font-size:1.2rem;line-height:1;cursor:pointer;border-radius:5px;padding:4px 7px}
+.strip-x:hover{color:var(--ink);background:var(--paper)}
+.strip-body{display:flex;flex-direction:column;gap:12px;padding:12px}
+.strip .jacks{border-top:0;padding-top:0}
+.strip .jgrid{grid-template-columns:repeat(auto-fill,minmax(54px,1fr))}
+.strip .lede{font-size:.84rem;margin:0}
+
+/* utility kit: lamps, meters, scope, keys */
+.lamps{display:flex;flex-wrap:wrap;gap:8px 14px}
+.lamp{display:flex;align-items:center;gap:6px;font:11px var(--font-mono);color:var(--muted)}
+.lamp i{width:12px;height:12px;border-radius:50%;border:2px solid var(--tc,var(--muted));transition:background .05s}
+.lamp.on i{background:var(--tc,var(--pink))}
+.meter{position:relative;height:10px;border:1px solid var(--rule);border-radius:5px;background:var(--paper);overflow:hidden}
+.meter i{position:absolute;left:0;top:0;bottom:0;background:var(--tc,var(--orange))}
+.meter b{position:absolute;top:0;bottom:0;width:2px;background:var(--ink)}
+.scope{position:relative;height:64px;border:1px solid var(--rule);border-radius:6px;background:var(--paper);overflow:hidden}
+.scope canvas{position:absolute;inset:0;width:100%;height:100%}
+.keys{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:2px}
+.keys span{height:24px;display:grid;place-items:end center;padding-bottom:2px;border:1px solid var(--rule);border-radius:3px;background:var(--paper);color:var(--muted);font:9px var(--font-mono)}
+.keys span.in{border-color:var(--ink);color:var(--ink)}
+.keys span.on{background:var(--pink);border-color:var(--pink);color:#1d2230}
+.big{font:500 1.5rem var(--font-mono);font-variant-numeric:tabular-nums}
+.takes{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.takes li{display:flex;flex-direction:column;gap:4px;font-size:.82rem}
+.takes audio{width:100%;height:32px}
+.takes .row a{text-decoration:none}
+
+/* ---------- pin matrix ----------
+   Outputs are rows, inputs columns. Holes appear only where a cable is allowed;
+   a pin is a cable, coloured by its signal. Headers stick while the board scrolls. */
+.mx-page{overflow:hidden;gap:10px}
+.mx-bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px}
+.mx-title{display:flex;align-items:baseline;gap:10px}
+.mx-read{flex-basis:100%;margin:0;min-height:1.45em;font:12px var(--font-mono);color:var(--ink);overflow-wrap:anywhere}
+.mx-wrap{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;border:1.5px solid var(--ink);border-radius:10px;background:var(--panel)}
+.mx-empty{padding:20px}
+.mx{border-collapse:separate;border-spacing:0;font-size:.78rem;color:var(--ink)}
+.mx th,.mx td{padding:0}
+.mx td{width:26px;min-width:26px;height:26px;text-align:center;border-right:1px solid color-mix(in srgb,var(--rule) 55%,transparent);border-bottom:1px solid color-mix(in srgb,var(--rule) 55%,transparent)}
+.mx td[data-gs]{border-left:1.5px solid var(--ink)}
+.mx td.nx{background:repeating-linear-gradient(135deg,transparent 0 4px,color-mix(in srgb,var(--rule) 45%,transparent) 4px 5px)}
+.mx thead th{position:sticky;z-index:2;background:var(--panel)}
+.mx-gr th{top:0;height:30px;border-bottom:1px solid var(--rule)}
+.mx-labels th{top:30px;border-bottom:1.5px solid var(--ink)}
+.mx-corner{left:0;z-index:4!important;min-width:150px;padding:8px 10px!important;vertical-align:bottom;text-align:left;border-right:1.5px solid var(--ink);font:11px var(--font-mono);color:var(--muted)}
+.mx-corner span{display:block}
+.mx-gh{text-align:left;border-left:1.5px solid var(--ink)}
+.mx-gh button,.mx-rgh button{border:0;background:none;color:var(--ink);cursor:pointer;padding:4px 8px;font:500 11px var(--font-mono);letter-spacing:.06em;text-transform:uppercase;white-space:nowrap}
+.mx-gh button::after,.mx-rgh button::after{content:" ▾";color:var(--muted)}
+.mx-gh button[aria-expanded="false"]::after,.mx-rgh button[aria-expanded="false"]::after{content:" ▸"}
+.mx-gh button:hover,.mx-rgh button:hover{color:var(--pink)}
+.mx-ch{height:124px;vertical-align:bottom;border-right:1px solid color-mix(in srgb,var(--rule) 55%,transparent)}
+.mx-ch.gs{border-left:1.5px solid var(--ink)}
+.mx-ch span{display:inline-flex;align-items:center;gap:6px;padding:8px 0;writing-mode:vertical-rl;transform:rotate(180deg);white-space:nowrap;font-weight:700;font-size:.76rem}
+.mx-ch i,.mx-rh i{flex:none;width:9px;height:9px;border-radius:50%;border:2.5px solid var(--tc);background:var(--ink)}
+.mx-ch.fold span,.mx-rh.fold{color:var(--muted);font-weight:400;font-family:var(--font-mono);font-size:11px}
+.mx tbody th{position:sticky;left:0;z-index:1;background:var(--panel);text-align:left;white-space:nowrap;border-right:1.5px solid var(--ink)}
+.mx-rh{max-width:220px;height:26px;padding:0 10px!important;overflow:hidden;text-overflow:ellipsis;font-weight:700;border-bottom:1px solid color-mix(in srgb,var(--rule) 55%,transparent)}
+.mx-rh i{display:inline-block;margin-right:7px;vertical-align:-1px}
+.mx-rg th{padding-top:10px!important;border-bottom:1px solid var(--rule)}
+.mx-rg td.mx-rgfill{border-right:0;border-bottom:1px solid var(--rule);height:auto}
+.mx th.hl{background:color-mix(in srgb,var(--pink) 16%,var(--panel))}
+.mx th.held{box-shadow:inset 4px 0 0 var(--pink)}
+.mx-ch.held{box-shadow:inset 0 -4px 0 var(--pink)}
+.hole,.fcell{width:26px;height:26px;display:grid;place-items:center;padding:0;border:0;background:none;cursor:pointer;color:var(--ink)}
+.hole::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--ink);opacity:.5;transition:width .1s,height .1s,box-shadow .1s}
+.hole:hover::before,.hole:focus-visible::before{opacity:1;box-shadow:0 0 0 4px color-mix(in srgb,var(--tc) 40%,transparent)}
+.hole.pin::before{width:15px;height:15px;opacity:1;background:var(--tc);box-shadow:inset 0 0 0 2.5px var(--ink)}
+.hole.flash::before{box-shadow:inset 0 0 0 2.5px var(--ink),0 0 0 5px color-mix(in srgb,var(--tc) 55%,transparent)}
+.fcell{font:500 11px var(--font-mono);background:color-mix(in srgb,var(--rule) 35%,transparent)}
+.fcell.has{background:color-mix(in srgb,var(--pink) 28%,transparent)}
+@media (max-width:760px){.mx-ch{height:104px}.mx-corner{min-width:110px}.mx-rh{max-width:150px}}

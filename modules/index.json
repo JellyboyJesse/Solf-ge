@@ -2,5 +2,11 @@
   "bell-towers",
   "solfege-pulses",
   "line-score",
-  "clock"
+  "clock",
+  "lfo",
+  "gate",
+  "delay",
+  "quantise",
+  "scaler",
+  "recorder"
 ]

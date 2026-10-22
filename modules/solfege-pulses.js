@@ -11,6 +11,8 @@ export default {
   name: 'Solfège Pulses',
   short: 'Pulses',
   version: 1,
+  kind: 'instrument',
+  description: 'do, re, mi… each sung every so many pulses. Sings notes from other modules as the nearest syllable.',
 
   defaults() {
     return {
