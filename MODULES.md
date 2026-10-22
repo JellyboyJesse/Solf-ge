@@ -2,7 +2,7 @@
 
 A module is one JavaScript file in `modules/`. The host loads it, gives it a page (a tab), a share of the audio engine, and ports that can be patched to any other module.
 
-To install a module, put the file in `modules/` and add its name (without `.js`) to `modules/index.json`. To try one first, open the patch sheet, choose **Try a module file**, and pick the file. It stays in that browser only.
+To install a module, put the file in `modules/` and add its name (without `.js`) to `modules/index.json`. To try one first, open **Patch → Modules → Choose a module file** and pick the file. It stays in that browser only.
 
 `modules/clock.js` is the smallest complete module. Copy it to start a new one.
 
@@ -37,7 +37,7 @@ All are optional except where noted.
 |---|---|---|
 | `ports()` | often | Returns the port list (see below). It can change over time, e.g. when a tower is added; call `host.portsChanged()` after a change. |
 | `mount(stage, panel)` | once | Builds the page. `stage` is the large left area, `panel` the control column. |
-| `render()` | after cable or patch changes | Rebuilds the panel so it can show what is patched. |
+| `render()` | after cable or patch changes, and when a cable is picked up or put down | Rebuilds the panel, including its jacks (`host.portsBox`). |
 | `draw(time)` | every frame while the page is visible | Animates the stage. `time` is the audio clock. |
 | `audioInit()` | once, when the person presses Start sound | Create long-lived audio nodes. Connect them to `host.output`. |
 | `schedule(now, until)` | every 25 ms while sound runs | Plan everything that happens before `until`. Also runs while other pages are showing. |
@@ -56,6 +56,10 @@ All are optional except where noted.
 ```
 
 Port ids are local to the module (the host adds the module id, so the patch stores `bell-towers.t2.strike`). Port ids may contain dots; module ids may not.
+
+**Once a port id has shipped, never rename or remove it.** Saved patches refer to it. Add a new port instead.
+
+**Labels.** When a module has repeated parts (towers, inks), give the port id a part prefix (`t2.`, `pink.`) and the label the form `Part · name`. The jack shows only the name, the patch sheet groups jacks by part, and cable lists show the full label.
 
 | Type | Message | Meaning |
 |---|---|---|
@@ -87,13 +91,15 @@ Send with `host.emit(portId, msg)`. A control input should fall back to its norm
 | `host.portsChanged()` | Tell the host the port list changed. |
 | `host.removeCables(prefix)` | Remove cables on ports starting with `prefix`, e.g. a deleted tower. |
 | `host.renameSource(from, to)` | Tell samplers a sampleable part is gone (`to` = `null` points them at the whole module). |
-| `host.portsBox(prefix)` | HTML listing this module's ports and their cables, for the panel. |
+| `host.portsBox(prefix)` | HTML for this module's jacks (ports whose id starts with `prefix`), for the panel. Put it at the end of the panel and re-render it in `render()`. Tapping a jack is handled by the host. |
 | `host.audioSources()`, `host.getBus(id)` | List and fetch every module's sampleable audio. |
 | `host.makeCanvas(stage, onResize)` | A canvas that fills the stage and stays sized to it (in device pixels). |
 | `host.colours()` | Current theme colours: `paper`, `panel`, `ink`, `muted`, `rule`, the inks `pink`, `blue`, `yellow`, `teal`, `orange`, and `blend` (`multiply` or `screen`). |
 | `host.noise()` | A short shared white-noise `AudioBuffer`. |
 | `host.toast(text)` | A short message at the bottom of the screen. |
 | `host.openPatch()` | Open the patch sheet. |
+
+Patching itself is done by the host: a person taps a jack to pick up a cable and taps a lit jack (on any page, or in the tray) to plug it in. A module never needs its own patching UI.
 | `host.visible` | Whether this module's page is showing. |
 | `host.util` | `clamp`, `mtof`, `hzToMidi`, `noteName`, `NOTE_NAMES`, `esc`, `r1`, `armed`. |
 

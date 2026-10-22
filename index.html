@@ -22,6 +22,15 @@
     <p class="loading" id="loading">Loading modules…</p>
   </main>
 
+  <section class="tray" id="tray" hidden aria-label="Cable in hand">
+    <div class="tray-h">
+      <span class="tray-held" id="trayHeld"></span>
+      <span class="tray-msg" id="trayMsg"></span>
+      <button class="btn small ghost" data-act="drop-cable">Let go</button>
+    </div>
+    <div class="tray-list" id="trayList"></div>
+  </section>
+
   <footer class="patchbar">
     <button class="btn" data-act="open-patch" id="patchBtn">Patch</button>
     <div class="leds" id="leds" aria-label="Module activity"></div>
@@ -34,48 +43,67 @@
   <div class="sheet-card" role="dialog" aria-label="Patch">
     <header><h2>Patch</h2><button class="btn ghost" data-act="close-patch">Close</button></header>
 
-    <section>
-      <h3>New cable</h3>
-      <div class="newcable">
-        <label>From <select id="p-from"></select></label>
-        <label>To <select id="p-to"></select></label>
-        <button class="btn primary" id="p-connect">Connect</button>
-      </div>
-    </section>
+    <div class="segs sheet-tabs" role="tablist">
+      <button class="seg on" role="tab" data-act="sheet-tab" data-tab="cables" aria-selected="true">Cables</button>
+      <button class="seg" role="tab" data-act="sheet-tab" data-tab="mix" aria-selected="false">Mix</button>
+      <button class="seg" role="tab" data-act="sheet-tab" data-tab="patches" aria-selected="false">Saved</button>
+      <button class="seg" role="tab" data-act="sheet-tab" data-tab="modules" aria-selected="false">Modules</button>
+    </div>
 
-    <section><h3>Cables</h3><ul class="cables" id="p-list"></ul></section>
+    <div class="tabpane" id="tab-cables">
+      <section>
+        <h3 id="cableCount">Cables</h3>
+        <div id="p-list"></div>
+      </section>
+      <section>
+        <h3>Every jack</h3>
+        <p class="note">Tap any jack to pick up a cable from it.</p>
+        <div class="chips" id="dirMods"></div>
+        <div class="dir" id="dirJacks"></div>
+      </section>
+      <section>
+        <h3>Signal types</h3>
+        <div class="legend">
+          <span class="pt t-trigger">trigger</span><span class="pt t-clock">clock</span><span class="pt t-note">note</span><span class="pt t-control">control</span>
+        </div>
+        <p class="note">Triggers, clocks and notes are all events, so any of them can fire a trigger or clock input. Notes only go to note inputs, and control only to control inputs. Audio moves by sampling.</p>
+      </section>
+    </div>
 
-    <section><h3>Mix</h3><div class="mix" id="p-mix"></div></section>
+    <div class="tabpane" id="tab-mix" hidden>
+      <section><h3>Levels</h3><div class="mix" id="p-mix"></div></section>
+    </div>
 
-    <section>
-      <h3>Saved patches</h3>
-      <div class="row">
-        <input type="text" id="patchName" placeholder="Name this patch" maxlength="40">
-        <button class="btn" id="patchSave">Save</button>
-      </div>
-      <ul class="plist" id="patchList"></ul>
-      <div class="row">
-        <button class="btn ghost" id="patchExport">Export as file</button>
-        <label class="btn ghost filebtn">Import file<input type="file" id="patchImport" accept=".json,application/json"></label>
-      </div>
-    </section>
+    <div class="tabpane" id="tab-patches" hidden>
+      <section>
+        <h3>Saved patches</h3>
+        <div class="row">
+          <input type="text" id="patchName" placeholder="Name this patch" maxlength="40">
+          <button class="btn" id="patchSave">Save</button>
+        </div>
+        <ul class="plist" id="patchList"></ul>
+      </section>
+      <section>
+        <h3>Files</h3>
+        <div class="row">
+          <button class="btn ghost" id="patchExport">Export as file</button>
+          <label class="btn ghost filebtn">Import file<input type="file" id="patchImport" accept=".json,application/json"></label>
+        </div>
+      </section>
+      <button class="btn ghost" id="p-reset" data-confirm="Tap again to reset everything">Reset to the example patch</button>
+    </div>
 
-    <section>
-      <h3>Modules</h3>
-      <ul class="plist" id="modList"></ul>
-      <label class="btn ghost filebtn">Try a module file<input type="file" id="modFile" accept=".js,.mjs,text/javascript"></label>
-      <p class="note">A module added here lives only in this browser. To keep it, put the file in the repo's <code>modules</code> folder and add its name to <code>modules/index.json</code>.</p>
-    </section>
-
-    <section>
-      <h3>Signal types</h3>
-      <div class="legend">
-        <span class="pt t-trigger">trigger</span><span class="pt t-clock">clock</span><span class="pt t-note">note</span><span class="pt t-control">control</span>
-      </div>
-      <p class="note">Triggers, clocks and notes are all events, so any of them can fire a trigger or clock input. Notes only go to note inputs, and control only to control inputs. Audio moves by sampling.</p>
-    </section>
-
-    <button class="btn ghost" id="p-reset" data-confirm="Tap again to reset everything">Reset to the example patch</button>
+    <div class="tabpane" id="tab-modules" hidden>
+      <section>
+        <h3>Installed</h3>
+        <ul class="plist" id="modList"></ul>
+      </section>
+      <section>
+        <h3>Try a new one</h3>
+        <label class="btn ghost filebtn">Choose a module file<input type="file" id="modFile" accept=".js,.mjs,text/javascript"></label>
+        <p class="note">A module added here lives only in this browser. To keep it, put the file in the repo's <code>modules</code> folder and add its name to <code>modules/index.json</code>.</p>
+      </section>
+    </div>
   </div>
 </div>
 

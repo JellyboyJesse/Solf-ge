@@ -13,6 +13,16 @@ A web-based modular rack. Each instrument is a module with its own page; modules
 | Line Score | `modules/line-score.js` | Drawn ink lines played by moving players. Crossings bend the sound and send notes; each ink can sample any other module. |
 | Clock | `modules/clock.js` | Master clock with two dividers and a chance gate. Also the template for new modules. |
 
+## Patching
+
+Every module page has a row of **jacks**: inputs and outputs, ringed in the colour of their signal (blue trigger, green clock, pink note, orange control).
+
+1. Tap a jack to pick up a cable from it.
+2. Every jack it can plug into lights up, on every page. The tabs show how many each page has, and the tray at the bottom lists them all.
+3. Tap a lit jack (or a name in the tray) to plug in. Undo is in the message that appears.
+
+While holding a cable, a jack with a × is already plugged into it: tap it to unplug. **Let go** or Escape puts the cable down. The **Patch** sheet lists every cable and every jack of every module.
+
 ## Adding a module
 
 1. Write it to the contract in [MODULES.md](MODULES.md), or ask Claude for one "as a Patchwork module".
@@ -20,7 +30,7 @@ A web-based modular rack. Each instrument is a module with its own page; modules
 3. Add its name to `modules/index.json`.
 4. Commit. The site updates within a minute or two.
 
-To try a module before committing it, open **Patch → Try a module file** on the site and pick the file. It stays in that browser only.
+To try a module before committing it, open **Patch → Modules → Choose a module file** on the site. It stays in that browser only.
 
 ## Patches
 
@@ -50,4 +60,5 @@ modules/index.json      which modules load, in tab order
 modules/*.js            one file per module
 patches/default.json    the example patch
 MODULES.md              how to write a module
+CLAUDE.md               working notes for Claude: ground rules, decisions, roadmap
 ```

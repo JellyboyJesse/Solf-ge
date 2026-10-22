@@ -1,6 +1,6 @@
 // Patchwork host.
 // Loads the modules listed in modules/index.json, runs one shared audio engine and clock,
-// and routes messages between module ports along the cables in the patch.
+// and routes messages between module jacks along the cables in the patch.
 // The module contract is described in MODULES.md.
 
 /* ---------- utilities handed to every module as host.util ---------- */
@@ -21,8 +21,9 @@ const util = {
     return false;
   },
 };
-const { clamp, esc } = util;
+const { esc } = util;
 const $ = s => document.querySelector(s);
+const TYPE_SHORT = { trigger: 'trig', clock: 'clock', note: 'note', control: 'ctrl' };
 
 /* ---------- state ---------- */
 const LS = 'patchwork-v1';
@@ -48,38 +49,43 @@ const now = () => (E.ctx ? E.ctx.currentTime : 0);
 const isPatched = full => S.cables.some(c => c.to === full);
 const isOutPatched = full => S.cables.some(c => c.from === full);
 const cableEls = new WeakMap();
+const modOf = full => full.slice(0, full.indexOf('.'));
 
 function emit(modId, port, msg) {
-  if (msg.kind !== 'control') ledFlash(modId, msg.time);
+  const from = modId + '.' + port;
+  if (msg.kind !== 'control') { ledFlash(modId, msg.time); jackFlash(from, msg.time); }
   if (E.depth > 4) return;           // stops feedback loops that fire at the same instant
   E.depth++;
   try {
-    const from = modId + '.' + port;
     for (const c of S.cables) {
       if (c.from !== from) continue;
-      const i = c.to.indexOf('.');
-      const m = byId[c.to.slice(0, i)];
+      const m = byId[modOf(c.to)];
       if (!m || !m.inst.input) continue;
-      try { m.inst.input(c.to.slice(i + 1), Object.assign({}, msg)); } catch (e) { console.error(e); }
-      if (msg.kind !== 'control') cableFlash(c, msg.time);
+      try { m.inst.input(c.to.slice(m.id.length + 1), Object.assign({}, msg)); } catch (e) { console.error(e); }
+      if (msg.kind !== 'control') { cableFlash(c, msg.time); jackFlash(c.to, msg.time); }
     }
   } finally { E.depth--; }
 }
 function later(time, fn) { setTimeout(fn, Math.max(0, (time - now()) * 1000)); }
-function ledFlash(id, time) {
-  const el = document.getElementById('led-' + id); if (!el) return;
-  later(time || now(), () => { el.classList.add('on'); clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove('on'), 90); });
-}
-function cableFlash(c, time) {
-  const el = cableEls.get(c); if (!el || $('#sheet').hidden) return;
-  later(time || now(), () => { el.classList.add('flash'); clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove('flash'), 120); });
+function blink(el, cls, ms) { el.classList.add(cls); clearTimeout(el['_' + cls]); el['_' + cls] = setTimeout(() => el.classList.remove(cls), ms); }
+function ledFlash(id, time) { const el = document.getElementById('led-' + id); if (el) later(time || now(), () => blink(el, 'on', 90)); }
+function cableFlash(c, time) { const el = cableEls.get(c); if (el && !$('#sheet').hidden) later(time || now(), () => blink(el, 'flash', 120)); }
+function jackFlash(full, time) {
+  if (modOf(full) !== cur || document.hidden) return;
+  later(time || now(), () => { document.querySelectorAll(`#view-${cur} .jack[data-jack="${full}"]`).forEach(el => blink(el, 'flash', 110)); });
 }
 function compatible(outT, inT) { if (inT === 'control') return outT === 'control'; if (inT === 'note') return outT === 'note'; return outT !== 'control'; }
+function whyNot(outT, inT) {
+  if (outT === 'control') return 'Control signals only go into control inputs.';
+  if (inT === 'control') return 'Control inputs only take control signals.';
+  return 'Note inputs only take notes.';
+}
 function modPorts(m) { try { return m.inst.ports ? m.inst.ports() : []; } catch (e) { console.error(e); return []; } }
 function allPorts(dir) { const res = []; for (const m of mods) for (const p of modPorts(m)) if (p.dir === dir) res.push({ ...p, full: m.id + '.' + p.id, mod: m.id }); return res; }
-function findPort(full) { const i = full.indexOf('.'); const m = byId[full.slice(0, i)]; if (!m) return null; const p = modPorts(m).find(x => x.id === full.slice(i + 1)); return p ? { m, p } : null; }
+function findPort(full) { const m = byId[modOf(full)]; if (!m) return null; const p = modPorts(m).find(x => x.id === full.slice(m.id.length + 1)); return p ? { m, p } : null; }
 function portLabel(full) { const f = findPort(full); return f ? (f.m.def.short || f.m.def.name) + ' · ' + f.p.label : full + ' (missing)'; }
 function portType(full) { const f = findPort(full); return f ? f.p.type : 'trigger'; }
+function shortLabel(label) { const i = label.lastIndexOf(' · '); return i < 0 ? label : label.slice(i + 3); }
 function allAudioSources() {
   const out = [];
   for (const m of mods) {
@@ -119,6 +125,120 @@ function readColours() {
   const next = {}; for (const k of TOKENS) next[k] = cs.getPropertyValue('--' + k).trim();
   C = next;
   for (const m of mods) { try { m.inst.themeChanged && m.inst.themeChanged(); } catch (e) { console.error(e); } }
+}
+
+/* ---------- jacks: picking up and plugging in cables ----------
+   Tap a jack to pick up a cable from it. While a cable is held, every jack it can
+   plug into lights up on every page, the tray lists them, and module tabs show how
+   many each page has. Tap a lit jack to connect, a linked one to unplug. */
+let held = null;   // { full, dir, type }
+
+const linksOf = (full, dir) => S.cables.filter(c => (dir === 'out' ? c.from === full : c.to === full));
+function endsWith(full) { return held.dir === 'out' ? [held.full, full] : [full, held.full]; }
+function relation(full, p) {           // how a jack relates to the held cable
+  if (!held) return '';
+  if (held.full === full) return 'held';
+  if (p.dir === held.dir) return 'same';
+  const [from, to] = endsWith(full);
+  if (S.cables.some(c => c.from === from && c.to === to)) return 'linked';
+  return compatible(portType(from), portType(to)) ? 'ok' : 'no';
+}
+function jackClass(full, p) {
+  const r = relation(full, p);
+  return 'jack t-' + p.type + (linksOf(full, p.dir).length ? ' patched' : '') + (r ? ' ' + r : '');
+}
+function jackHTML(full, p) {
+  const links = linksOf(full, p.dir), n = links.length;
+  const peers = links.map(c => portLabel(p.dir === 'out' ? c.to : c.from));
+  const desc = `${portLabel(full)}, ${p.type} ${p.dir === 'out' ? 'output' : 'input'}, ${n ? 'patched to ' + peers.join(', ') : 'not patched'}`;
+  return `<button class="${jackClass(full, p)}" data-jack="${esc(full)}" aria-label="${esc(desc)}" title="${esc(desc)}">` +
+    `<span class="socket"><b class="n">${n > 1 ? n : ''}</b></span><span class="jl">${esc(shortLabel(p.label))}</span><span class="jt">${TYPE_SHORT[p.type] || p.type}</span></button>`;
+}
+function faceplate(id, ports) {
+  const row = (dir, name) => {
+    const l = ports.filter(p => p.dir === dir);
+    return l.length ? `<div class="jrow"><span class="jside">${name}</span><div class="jgrid">${l.map(p => jackHTML(id + '.' + p.id, p)).join('')}</div></div>` : '';
+  };
+  return `<div class="plate">${row('in', 'In')}${row('out', 'Out')}</div>`;
+}
+const helpText = () => (held ? 'Tap a lit jack to plug in, a crossed one to unplug, or the raised one to let go.' : 'Tap a jack to patch it.');
+function portsBox(id, prefix) {
+  const m = byId[id]; if (!m) return '';
+  const ports = modPorts(m).filter(p => p.id.startsWith(prefix || ''));
+  return `<section class="jacks"><div class="jacks-h"><h3>Jacks</h3><button class="btn small ghost" data-act="open-patch">All cables</button></div>` +
+    (ports.length ? faceplate(id, ports) : '<p class="note">This module has no jacks.</p>') + `<p class="jhelp">${helpText()}</p></section>`;
+}
+
+function countTargets(modId) {
+  if (!held) return 0; let n = 0;
+  const m = byId[modId]; if (!m) return 0;
+  for (const p of modPorts(m)) if (relation(modId + '.' + p.id, p) === 'ok') n++;
+  return n;
+}
+function paintJacks() {
+  document.querySelectorAll('.jack[data-jack]').forEach(el => {
+    const f = findPort(el.dataset.jack); if (f) el.className = jackClass(el.dataset.jack, f.p);
+  });
+  document.querySelectorAll('.jhelp').forEach(el => { el.textContent = helpText(); });
+  document.body.classList.toggle('holding', !!held);
+  paintTabs(); renderTray();
+}
+function paintTabs() {
+  document.querySelectorAll('#tabs a').forEach(a => {
+    let b = a.querySelector('.tab-n'); const n = countTargets(a.dataset.view);
+    if (n) { if (!b) { b = document.createElement('span'); b.className = 'tab-n'; a.appendChild(b); } b.textContent = n; b.title = n + ' jacks to plug into'; }
+    else if (b) b.remove();
+  });
+}
+function renderTray() {
+  const tray = $('#tray');
+  if (!held) { tray.hidden = true; return; }
+  const f = findPort(held.full); if (!f) { held = null; tray.hidden = true; return; }
+  tray.hidden = false;
+  $('#trayHeld').innerHTML = `<span class="jack held t-${held.type}" aria-hidden="true"><span class="socket"></span></span><span>${esc(portLabel(held.full))}</span>`;
+  $('#trayMsg').textContent = held.dir === 'out' ? 'Where should it go? Tap a lit jack on any page, or pick one here.' : 'Where should it come from? Tap a lit jack on any page, or pick one here.';
+  const opp = allPorts(held.dir === 'out' ? 'in' : 'out').filter(p => p.full !== held.full);
+  const chip = (p, cls, label) => `<button class="tchip t-${p.type} ${cls}" data-jack="${esc(p.full)}" title="${cls === 'linked' ? 'Unplug' : 'Plug in'}">${esc(label)}</button>`;
+  const linked = opp.filter(p => relation(p.full, p) === 'linked');
+  let html = linked.length ? `<div class="tg"><span class="tg-name">Plugged in</span>${linked.map(p => chip(p, 'linked', portLabel(p.full))).join('')}</div>` : '';
+  for (const m of mods) {
+    const l = opp.filter(p => p.mod === m.id && relation(p.full, p) === 'ok');
+    if (l.length) html += `<div class="tg"><span class="tg-name">${esc(m.def.name)}</span>${l.map(p => chip(p, 'ok', p.label)).join('')}</div>`;
+  }
+  $('#trayList').innerHTML = html || '<span class="note">Nothing on the rack can take this signal.</span>';
+}
+function hold(full) {
+  const f = findPort(full); if (!f) return;
+  held = { full, dir: f.p.dir, type: f.p.type };
+  paintJacks();
+}
+function drop() { if (!held) return; held = null; paintJacks(); }
+function connect(from, to) {
+  const c = { from, to }; S.cables.push(c); save();
+  held = null; refresh();
+  toast('Connected ' + portLabel(from) + ' → ' + portLabel(to), {
+    label: 'Undo', fn() { const k = S.cables.indexOf(c); if (k >= 0) { S.cables.splice(k, 1); save(); refresh(); } },
+  });
+}
+function unplug(i, keepHolding) {
+  const c = S.cables.splice(i, 1)[0]; if (!c) return; save();
+  if (!keepHolding) held = null;
+  refresh();
+  toast('Unplugged ' + portLabel(c.from) + ' → ' + portLabel(c.to), {
+    label: 'Undo', fn() { if (!S.cables.some(x => x.from === c.from && x.to === c.to)) { S.cables.splice(Math.min(i, S.cables.length), 0, c); save(); refresh(); } },
+  });
+}
+function pick(full) {
+  const f = findPort(full);
+  if (!f) { toast('That jack belongs to a module that is not loaded.'); return; }
+  if (!held) { hold(full); return; }
+  if (held.full === full) { drop(); return; }
+  if (f.p.dir === held.dir) { hold(full); return; }          // changed your mind: pick up this one instead
+  const [from, to] = endsWith(full);
+  const i = S.cables.findIndex(c => c.from === from && c.to === to);
+  if (i >= 0) { unplug(i, true); return; }
+  if (!compatible(portType(from), portType(to))) { toast(whyNot(portType(from), portType(to))); return; }
+  connect(from, to);
 }
 
 /* ---------- module API ---------- */
@@ -195,6 +315,7 @@ async function loadRepoModule(id) { const mod = await import(`../modules/${id}.j
 /* ---------- patches ---------- */
 function snapshot() { return clone({ modules: S.modules, cables: S.cables, mix: S.mix }); }
 function applyPatch(p) {
+  held = null;
   S.modules = clone(p.modules || {});
   for (const m of mods) if (!S.modules[m.id]) S.modules[m.id] = m.def.defaults ? m.def.defaults() : {};
   S.cables = (p.cables || []).filter(c => c && c.from && c.to).map(c => ({ from: c.from, to: c.to }));
@@ -207,50 +328,76 @@ async function defaultPatch() {
   return { cables: [] };
 }
 
-/* ---------- UI: chrome, ports box, patch sheet ---------- */
+/* ---------- chrome and the patch sheet ---------- */
+let sheetTab = 'cables';
+let dirMod = null;
 function renderChrome() {
   $('#tabs').innerHTML = mods.map(m => `<a href="#${m.id}" data-view="${m.id}" class="${m.source === 'local' ? 'local' : ''}">${esc(m.def.name)}</a>`).join('');
   $('#leds').innerHTML = mods.map(m => `<span><i class="led" id="led-${m.id}"></i>${esc(m.def.short || m.def.name)}</span>`).join('');
 }
-function portsBox(id, prefix) {
-  const m = byId[id]; if (!m) return '';
-  const rows = modPorts(m).filter(p => p.id.startsWith(prefix)).map(p => {
-    const full = id + '.' + p.id;
-    const cs = S.cables.filter(c => (p.dir === 'out' ? c.from === full : c.to === full));
-    const names = cs.map(c => esc(portLabel(p.dir === 'out' ? c.to : c.from))).join(', ');
-    return `<li><span class="pt t-${p.type}">${p.dir} · ${p.type}</span><span class="pn">${esc(p.label)}</span><span class="pc">${cs.length ? (p.dir === 'out' ? '→ ' : '← ') + names : 'not patched'}</span></li>`;
-  }).join('');
-  return `<section class="ports"><div class="ports-h"><h3>Ports</h3><button class="btn small" data-act="open-patch">Edit patch</button></div><ul>${rows || '<li class="note">This module has no ports.</li>'}</ul></section>`;
+function parts(m) {               // group a module's ports by the part before the last dot: t1., pink., …
+  const out = [];
+  for (const p of modPorts(m)) {
+    const pre = p.id.includes('.') ? p.id.slice(0, p.id.lastIndexOf('.') + 1) : '';
+    let g = out.find(x => x.pre === pre);
+    if (!g) { const i = p.label.lastIndexOf(' · '); out.push(g = { pre, name: pre && i > 0 ? p.label.slice(0, i) : m.def.name, ports: [] }); }
+    g.ports.push(p);
+  }
+  return out;
 }
-function optGroups(list) {
-  return mods.map(m => { const l = list.filter(p => p.mod === m.id); return l.length ? `<optgroup label="${esc(m.def.name)}">${l.map(p => `<option value="${p.full}">${esc(p.label)} (${p.type})</option>`).join('')}</optgroup>` : ''; }).join('');
+function renderCables() {
+  const n = S.cables.length;
+  $('#cableCount').textContent = n ? n + ' cable' + (n === 1 ? '' : 's') : 'Cables';
+  const list = $('#p-list');
+  if (!n) { list.innerHTML = '<p class="empty">No cables yet. Each module still plays on its own. Tap any jack to start one.</p>'; return; }
+  const groups = [];
+  S.cables.forEach((c, i) => {
+    const mid = modOf(c.from); let g = groups.find(x => x.mid === mid);
+    if (!g) groups.push(g = { mid, name: byId[mid] ? byId[mid].def.name : mid + ' (not loaded)', rows: [] });
+    g.rows.push({ c, i });
+  });
+  list.innerHTML = '';
+  for (const g of groups) {
+    const h = document.createElement('h4'); h.className = 'cgroup'; h.textContent = 'From ' + g.name; list.appendChild(h);
+    const ul = document.createElement('ul'); ul.className = 'cables';
+    for (const { c, i } of g.rows) {
+      const li = document.createElement('li'); const f = findPort(c.from);
+      li.className = 't-' + portType(c.from);
+      li.innerHTML = `<button class="cab" data-jack="${esc(c.from)}" title="Pick up this jack">${esc(f ? f.p.label : portLabel(c.from))}</button><span class="arr" aria-hidden="true">→</span>` +
+        `<button class="cab" data-jack="${esc(c.to)}" title="Pick up this jack">${esc(portLabel(c.to))}</button><button class="x" data-act="rm-cable" data-i="${i}" aria-label="Unplug ${esc(portLabel(c.from))} to ${esc(portLabel(c.to))}">×</button>`;
+      ul.appendChild(li); cableEls.set(c, li);
+    }
+    list.appendChild(ul);
+  }
 }
-function fillTo() {
-  const from = $('#p-from').value; const ft = portType(from);
-  const ins = allPorts('in').filter(p => compatible(ft, p.type) && !S.cables.some(c => c.from === from && c.to === p.full));
-  $('#p-to').innerHTML = optGroups(ins); $('#p-connect').disabled = !from || !ins.length;
+function renderDirectory() {
+  if (!byId[dirMod]) dirMod = byId[cur] ? cur : (mods[0] && mods[0].id);
+  $('#dirMods').innerHTML = mods.map(m => `<button class="chip ${m.id === dirMod ? 'on' : ''}" data-act="dir-mod" data-id="${m.id}">${esc(m.def.name)}</button>`).join('');
+  const m = byId[dirMod];
+  $('#dirJacks').innerHTML = m ? parts(m).map(g => `<div class="part"><h4>${esc(g.name)}</h4>${faceplate(m.id, g.ports)}</div>`).join('') : '';
 }
 function renderSheet() {
-  const prev = $('#p-from').value; const outs = allPorts('out');
-  $('#p-from').innerHTML = optGroups(outs); if (prev && outs.some(p => p.full === prev)) $('#p-from').value = prev; fillTo();
-  const ul = $('#p-list'); ul.innerHTML = '';
-  if (!S.cables.length) ul.innerHTML = '<p class="empty">No cables yet. Each module still plays on its own.</p>';
-  S.cables.forEach((c, i) => {
-    const li = document.createElement('li'); const ty = portType(c.from); li.className = 't-' + ty;
-    li.innerHTML = `<span class="cab">${esc(portLabel(c.from))} → ${esc(portLabel(c.to))}<small>${ty}</small></span><button data-act="rm-cable" data-i="${i}" aria-label="Remove cable">×</button>`;
-    ul.appendChild(li); cableEls.set(c, li);
-  });
-  $('#p-mix').innerHTML = mods.map(m => { const mx = mixFor(m.id); return `<span>${esc(m.def.name)}</span><input type="range" data-mixvol="${m.id}" min="0" max="1" step="0.01" value="${mx.vol}" aria-label="${esc(m.def.name)} volume"><button class="chip ${mx.mute ? 'on' : ''}" data-act="mute" data-mod="${m.id}">${mx.mute ? 'Muted' : 'Mute'}</button>`; }).join('');
-  const names = Object.keys(S.patches || {});
-  $('#patchList').innerHTML = names.length ? names.map(n => `<li><span class="grow">${esc(n)}<small>${S.patches[n].cables.length} cables</small></span><button class="btn small" data-act="load-patch" data-name="${esc(n)}" data-confirm="Tap again">Load</button><button class="btn small ghost" data-act="del-patch" data-name="${esc(n)}" data-confirm="Delete?">×</button></li>`).join('') : '<p class="empty">Saved patches appear here.</p>';
-  $('#modList').innerHTML = mods.map(m => `<li><span class="grow">${esc(m.def.name)}<small>${m.id}.js · v${esc(m.def.version || 1)} · ${m.source === 'local' ? 'this browser only' : 'from the repo'}</small></span>${m.source === 'local' ? `<button class="btn small ghost" data-act="rm-local" data-id="${m.id}" data-confirm="Remove?">Remove</button>` : ''}</li>`).join('');
+  document.querySelectorAll('.sheet-tabs .seg').forEach(b => { const on = b.dataset.tab === sheetTab; b.classList.toggle('on', on); b.setAttribute('aria-selected', on); });
+  for (const t of ['cables', 'mix', 'patches', 'modules']) $('#tab-' + t).hidden = t !== sheetTab;
+  if (sheetTab === 'cables') { renderCables(); renderDirectory(); }
+  else if (sheetTab === 'mix') {
+    $('#p-mix').innerHTML = mods.map(m => { const mx = mixFor(m.id); return `<span>${esc(m.def.name)}</span><input type="range" data-mixvol="${m.id}" min="0" max="1" step="0.01" value="${mx.vol}" aria-label="${esc(m.def.name)} volume"><button class="chip ${mx.mute ? 'on' : ''}" data-act="mute" data-mod="${m.id}">${mx.mute ? 'Muted' : 'Mute'}</button>`; }).join('');
+  } else if (sheetTab === 'patches') {
+    const names = Object.keys(S.patches || {});
+    $('#patchList').innerHTML = names.length ? names.map(n => `<li><span class="grow">${esc(n)}<small>${S.patches[n].cables.length} cables</small></span><button class="btn small" data-act="load-patch" data-name="${esc(n)}" data-confirm="Tap again">Load</button><button class="btn small ghost" data-act="del-patch" data-name="${esc(n)}" data-confirm="Delete?" aria-label="Delete ${esc(n)}">×</button></li>`).join('') : '<p class="empty">Saved patches appear here.</p>';
+  } else {
+    $('#modList').innerHTML = mods.map(m => `<li><span class="grow">${esc(m.def.name)}<small>${m.id}.js · v${esc(m.def.version || 1)} · ${m.source === 'local' ? 'this browser only' : 'from the repo'}</small></span>${m.source === 'local' ? `<button class="btn small ghost" data-act="rm-local" data-id="${m.id}" data-confirm="Remove?">Remove</button>` : ''}</li>`).join('');
+  }
 }
 function refresh() {
+  if (held && !findPort(held.full)) held = null;
   for (const m of mods) { try { m.inst.render && m.inst.render(); } catch (e) { console.error(e); } }
   $('#patchBtn').textContent = 'Patch · ' + S.cables.length + ' cable' + (S.cables.length === 1 ? '' : 's');
+  paintJacks();
   if (!$('#sheet').hidden) renderSheet();
 }
-function openPatch() { $('#sheet').hidden = false; renderSheet(); }
+function openPatch(tab) { if (typeof tab === 'string') sheetTab = tab; $('#sheet').hidden = false; renderSheet(); }
+function closePatch() { $('#sheet').hidden = true; }
 
 /* ---------- routing, drawing, scheduling ---------- */
 function route() {
@@ -259,6 +406,16 @@ function route() {
   cur = v; S.view = v; save();
   for (const m of mods) m.el.view.hidden = m.id !== v;
   document.querySelectorAll('#tabs a').forEach(a => { if (a.dataset.view === v) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
+  if (held) requestAnimationFrame(revealJacks);
+}
+// With a cable in hand, bring the page's jacks into view inside its panel.
+function revealJacks() {
+  const m = byId[cur]; if (!m) return;
+  const panel = m.el.panel, box = panel.querySelector('.jacks'); if (!box) return;
+  const pr = panel.getBoundingClientRect(), br = box.getBoundingClientRect();
+  if (br.top >= pr.top && br.bottom <= pr.bottom) return;
+  const top = panel.scrollTop + br.top - pr.top - 8;
+  panel.scrollTo({ top, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
 }
 function frame() {
   const m = byId[cur];
@@ -270,8 +427,7 @@ function tick() {
   const n = E.ctx.currentTime, until = n + (document.hidden ? 1.2 : 0.12);
   for (const m of mods) if (m.inst.schedule) { try { m.inst.schedule(n, until); } catch (e) { console.error(e); } }
 }
-let wake = null;
-async function keepAwake() { try { if (navigator.wakeLock && !document.hidden) wake = await navigator.wakeLock.request('screen'); } catch (e) { /* not allowed */ } }
+async function keepAwake() { try { if (navigator.wakeLock && !document.hidden) await navigator.wakeLock.request('screen'); } catch (e) { /* not allowed */ } }
 async function startSound() {
   const btn = $('#startBtn');
   if (E.ctx) {
@@ -290,12 +446,19 @@ async function startSound() {
   btn.textContent = 'Pause'; btn.classList.remove('primary'); keepAwake(); refresh();
 }
 
-/* ---------- toast ---------- */
+/* ---------- toast, with an optional action such as Undo ---------- */
 let toastT;
-function toast(msg) {
+function toast(msg, action) {
   let t = $('#toast');
   if (!t) { t = document.createElement('div'); t.id = 'toast'; t.className = 'toast'; t.setAttribute('role', 'status'); document.body.appendChild(t); }
-  t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, 3400);
+  t.innerHTML = ''; const s = document.createElement('span'); s.textContent = msg; t.appendChild(s);
+  if (action) {
+    const b = document.createElement('button'); b.textContent = action.label;
+    b.addEventListener('click', () => { t.hidden = true; action.fn(); }); t.appendChild(b);
+  }
+  const anchor = $('#tray').hidden ? $('.patchbar') : $('#tray');
+  t.style.bottom = Math.max(16, innerHeight - anchor.getBoundingClientRect().top + 10) + 'px';
+  t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, action ? 5000 : 3400);
 }
 
 /* ---------- interactions ---------- */
@@ -304,9 +467,12 @@ function download(name, text) {
   document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
 }
 const ACTIONS = {
-  'open-patch'() { openPatch(); },
-  'close-patch'() { $('#sheet').hidden = true; },
-  'rm-cable'(b) { S.cables.splice(+b.dataset.i, 1); save(); refresh(); },
+  'open-patch'() { openPatch('cables'); },
+  'close-patch'() { closePatch(); },
+  'drop-cable'() { drop(); },
+  'sheet-tab'(b) { sheetTab = b.dataset.tab; renderSheet(); },
+  'dir-mod'(b) { dirMod = b.dataset.id; renderDirectory(); },
+  'rm-cable'(b) { unplug(+b.dataset.i, false); },
   'mute'(b) { const mx = mixFor(b.dataset.mod); mx.mute = !mx.mute; applyMix(); save(); renderSheet(); },
   'load-patch'(b) { if (!util.armed(b)) return; const p = S.patches[b.dataset.name]; if (p) { applyPatch(p); toast('Loaded ' + b.dataset.name); } },
   'del-patch'(b) { if (!util.armed(b)) return; delete S.patches[b.dataset.name]; save(); renderSheet(); },
@@ -319,6 +485,15 @@ const ACTIONS = {
   },
 };
 document.addEventListener('click', e => {
+  const j = e.target.closest('[data-jack]');
+  if (j) {
+    e.preventDefault();
+    const fromSheet = !!j.closest('#sheet');
+    if (fromSheet) closePatch();             // jacks in the sheet hand over to the tray
+    pick(j.dataset.jack);
+    if (fromSheet && held) requestAnimationFrame(revealJacks);
+    return;
+  }
   const b = e.target.closest('[data-act]'); if (!b || b.disabled) return;
   const f = ACTIONS[b.dataset.act]; if (f) { e.preventDefault(); f(b, e); }
 });
@@ -326,11 +501,6 @@ document.addEventListener('input', e => {
   const el = e.target;
   if (el.id === 'masterVol') { S.mix.master = parseFloat(el.value); applyMix(); save(); }
   else if (el.dataset && el.dataset.mixvol) { mixFor(el.dataset.mixvol).vol = parseFloat(el.value); applyMix(); save(); }
-});
-$('#p-from').addEventListener('change', fillTo);
-$('#p-connect').addEventListener('click', () => {
-  const from = $('#p-from').value, to = $('#p-to').value; if (!from || !to) return;
-  S.cables.push({ from, to }); save(); refresh();
 });
 $('#startBtn').addEventListener('click', startSound);
 $('#p-reset').addEventListener('click', async e => {
@@ -355,11 +525,14 @@ $('#modFile').addEventListener('change', async e => {
     const src = await f.text(); const def = await importSource(src);
     const m = register(def, 'local');
     setLocalModules([...localModules().filter(x => x.id !== def.id), { id: def.id, source: src }]);
-    renderChrome(); location.hash = m.id; route(); refresh(); toast('Added ' + def.name + ' to this browser');
+    renderChrome(); closePatch(); location.hash = m.id; route(); refresh(); toast('Added ' + def.name + ' to this browser');
   } catch (err) { console.error(err); toast('Could not load that module: ' + err.message); }
 });
 addEventListener('hashchange', route);
-addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#sheet').hidden) $('#sheet').hidden = true; });
+addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  if (!$('#sheet').hidden) closePatch(); else if (held) drop();
+});
 document.addEventListener('visibilitychange', () => { if (!document.hidden && E.ctx && E.ctx.state === 'running') keepAwake(); });
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', readColours);
 new MutationObserver(readColours).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
